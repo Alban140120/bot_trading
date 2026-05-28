@@ -48,6 +48,7 @@ def get_bars(symbol="AAPL", days=730):
         symbol_or_symbols=symbol,
         timeframe=TimeFrame.Day,
         start=datetime.now() - timedelta(days=days),
+        adjustment="all",
     )
 
     bars = _data_client.get_stock_bars(request).df
@@ -82,6 +83,7 @@ def get_bars_batch(symbols=None, days=1825, batch_size=10, pause=1.0):
                 symbol_or_symbols=batch,
                 timeframe=TimeFrame.Day,
                 start=datetime.now() - timedelta(days=days),
+                adjustment="all",
             )
 
             bars = _data_client.get_stock_bars(request).df

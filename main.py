@@ -4,11 +4,14 @@ from sf.load_bronze import load_market_data, load_orders
 from sf.load_silver import load_features
 from sf.load_gold import load_signals
 
+# ── Mode développement ────────────────────────────────────────────────────────
+DEV_MODE = False
+SYMBOLS = ["AAPL", "MSFT", "NVDA", "TSLA", "AMZN"] if DEV_MODE else SP500_SYMBOLS
 
 def run():
     # ── 1. OHLCV S&P500 → Bronze ──────────────────────────────────────────────
-    print("=== Ingestion OHLCV S&P500 (2 ans) ===")
-    df_bars = get_bars_batch(symbols=SP500_SYMBOLS, days=1825)
+    print("=== Ingestion OHLCV S&P500 (5 ans) ===")
+    df_bars = get_bars_batch(symbols=SYMBOLS, days=1825)
     print(f"  Lignes récupérées : {len(df_bars)}")
 
     df_bronze = normalize_bars(df_bars)
