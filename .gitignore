@@ -11,3 +11,12 @@ venv/
 
 # OS files
 .DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Outputs / résultats locaux
+outputs/
+results/
