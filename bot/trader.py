@@ -1,9 +1,15 @@
 import math
+import os
+from dotenv import load_dotenv
 from alpaca.trading.client import TradingClient
 from alpaca.trading.requests import MarketOrderRequest
 from alpaca.trading.enums import OrderSide, TimeInForce
+from alpaca.data.historical import StockHistoricalDataClient
+from alpaca.data.requests import StockLatestQuoteRequest
 from sf.snowflake_connection import get_conn
 from bot.logger import setup_logger
+
+load_dotenv()
 
 logger = setup_logger()
 
@@ -11,13 +17,17 @@ TRADE_SIZE = 1_000  # $ par position
 
 
 def get_trading_client():
-    import os
-    from dotenv import load_dotenv
-    load_dotenv()
     return TradingClient(
         os.getenv("ALPACA_API_KEY"),
         os.getenv("ALPACA_SECRET_KEY"),
         paper=True,
+    )
+
+
+def get_data_client():
+    return StockHistoricalDataClient(
+        os.getenv("ALPACA_API_KEY"),
+        os.getenv("ALPACA_SECRET_KEY"),
     )
 
 
@@ -49,7 +59,6 @@ def get_latest_signals():
 
     cur.execute(query)
     rows = cur.fetchall()
-    cols = [desc[0] for desc in cur.description]
 
     cur.close()
     conn.close()
@@ -68,17 +77,9 @@ def get_open_positions(client):
 
 # ── 3. Récupérer le prix actuel ───────────────────────────────────────────────
 
-def get_current_price(client, symbol):
-    """Récupère le dernier prix connu via les positions ou l'API."""
+def get_current_price(data_client, symbol):
+    """Récupère le dernier prix connu via l'API."""
     try:
-        from alpaca.data.historical import StockHistoricalDataClient
-        from alpaca.data.requests import StockLatestQuoteRequest
-        import os
-
-        data_client = StockHistoricalDataClient(
-            os.getenv("ALPACA_API_KEY"),
-            os.getenv("ALPACA_SECRET_KEY"),
-        )
         quote = data_client.get_stock_latest_quote(
             StockLatestQuoteRequest(symbol_or_symbols=symbol)
         )
@@ -115,31 +116,42 @@ def run_bot():
     logger.info("Démarrage du bot de trading")
     logger.info("=" * 60)
 
-    client    = get_trading_client()
-    signals   = get_latest_signals()
-    positions = get_open_positions(client)
+    client      = get_trading_client()
+    data_client = get_data_client()
+    signals     = get_latest_signals()
+    positions   = get_open_positions(client)
 
-    logger.info(f"Signaux récupérés : {len(signals)}")
+    # Récupérer le buying power une fois avant la boucle
+    account      = client.get_account()
+    buying_power = float(account.buying_power)
+
+    logger.info(f"Signaux récupérés  : {len(signals)}")
     logger.info(f"Positions ouvertes : {len(positions)}")
+    logger.info(f"Buying power       : ${buying_power:,.2f}")
 
-    orders_placed = 0
+    orders_placed  = 0
     orders_skipped = 0
 
     for symbol, data in signals.items():
         signal     = data["signal"]
         confidence = data["confidence"]
-        timestamp  = data["timestamp"]
+
+        # ── Vérifier le buying power avant chaque BUY ─────────────────────────
+        if signal == "BUY" and buying_power < TRADE_SIZE:
+            logger.warning(f"STOP | Capital insuffisant : ${buying_power:.2f} restant")
+            break
 
         # ── BUY ───────────────────────────────────────────────────────────────
         if signal == "BUY" and symbol not in positions:
-            price = get_current_price(client, symbol)
+            price = get_current_price(data_client, symbol)
 
             if price and price > 0:
-                qty = math.floor((TRADE_SIZE / price) * 10000) / 10000  # 4 décimales
+                qty = math.floor((TRADE_SIZE / price) * 10000) / 10000
                 if qty > 0:
                     logger.info(f"BUY  | {symbol} | prix={price:.2f} | qty={qty:.4f} | conf={confidence:.1f}%")
                     place_order(client, symbol, OrderSide.BUY, qty)
                     orders_placed += 1
+                    buying_power  -= TRADE_SIZE  # mettre à jour localement
                 else:
                     logger.warning(f"SKIP | {symbol} | qty trop faible (prix={price:.2f})")
                     orders_skipped += 1
@@ -154,6 +166,7 @@ def run_bot():
             logger.info(f"SELL | {symbol} | qty={qty:.4f} | conf={confidence:.1f}%")
             place_order(client, symbol, OrderSide.SELL, qty)
             orders_placed += 1
+            buying_power  += TRADE_SIZE  # libérer le capital
 
         # ── HOLD / pas d'action ───────────────────────────────────────────────
         else:
@@ -161,7 +174,8 @@ def run_bot():
             logger.debug(f"SKIP | {symbol} | signal={signal} | {reason}")
 
     logger.info("-" * 60)
-    logger.info(f"Ordres passés  : {orders_placed}")
-    logger.info(f"Ordres skippés : {orders_skipped}")
+    logger.info(f"Ordres passés        : {orders_placed}")
+    logger.info(f"Ordres skippés       : {orders_skipped}")
+    logger.info(f"Buying power restant : ${buying_power:,.2f}")
     logger.info("Bot terminé.")
     logger.info("=" * 60)
