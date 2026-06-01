@@ -1,5 +1,3 @@
-# bot_trading
-
 # Bot de Trading Algorithmique — S&P500
 
 Bot de trading algorithmique basé sur une architecture data en médaillon (Bronze/Silver/Gold) avec Snowflake, utilisant un système de vote entre 3 stratégies pour générer des signaux de trading sur le S&P500.
@@ -15,6 +13,8 @@ Silver (indicateurs techniques)
 Gold (signaux BUY/SELL/HOLD)
 ↓
 Bot de trading (paper trading Alpaca)
+↓
+Agent LLM (interaction en langage naturel)
 
 ## Stratégies
 
@@ -48,11 +48,15 @@ bot_trading/
 ├── transformations/    # Calcul indicateurs + signaux
 ├── sf/                 # Connexion et chargement Snowflake
 ├── backtesting/        # Simulation et métriques
-├── bot/                # Logique du bot de trading
+├── bot/
+│   ├── trader.py       # Logique du bot automatique
+│   ├── agent.py        # Agent LLM (Groq)
+│   └── logger.py       # Logging journalier
 ├── data/               # Liste des symboles S&P500
 ├── logs/               # Logs journaliers du bot
 ├── main.py             # Pipeline complet
-└── run_bot.py          # Lancement du bot
+├── run_bot.py          # Lancement du bot automatique
+└── run_agent.py        # Lancement de l'agent LLM
 
 ## Installation
 
@@ -75,6 +79,7 @@ SNOWFLAKE_DATABASE=xxx
 SNOWFLAKE_SCHEMA=xxx
 ALPACA_API_KEY=xxx
 ALPACA_SECRET_KEY=xxx
+GROQ_API_KEY=xxx
 ```
 
 ## Utilisation
@@ -88,6 +93,9 @@ python main.py
 
 # Lancer le bot de trading
 python run_bot.py
+
+# Lancer l'agent LLM interactif
+python run_agent.py
 
 # Lancer le backtest
 python -m backtesting.run_backtest
@@ -108,6 +116,37 @@ Le pipeline tourne automatiquement via **GitHub Actions** chaque jour ouvré à 
 - **Python 3.11**
 - **Snowflake** — stockage des données (architecture médaillon)
 - **Alpaca API** — données de marché et passage d'ordres
+- **Pandas** — transformation des données
+- **Plotly** — visualisation des performances
+- **GitHub Actions** — automatisation du pipeline
+
+## Agent LLM
+
+L'agent permet d'interagir avec le portefeuille en langage naturel via le terminal :
+
+"Quel est mon portefeuille ?"
+"Quelles sont mes positions actuelles ?"
+"Quel est le signal pour NVIDIA ?"
+"Quels sont les 5 meilleurs signaux BUY du moment ?"
+"Achète 2 actions AAPL"
+"Vends mes actions TSLA"
+"Y a-t-il des signaux SELL intéressants ?"
+
+L'agent demande toujours confirmation avant de passer un ordre.
+
+## Automatisation
+
+Le pipeline tourne automatiquement via **GitHub Actions** chaque jour ouvré à 16h30 UTC (après la clôture du marché US) :
+- Ingestion des nouvelles données
+- Mise à jour des signaux
+- Passage des ordres sur Alpaca paper trading
+
+## Stack technique
+
+- **Python 3.11**
+- **Snowflake** — stockage des données (architecture médaillon)
+- **Alpaca API** — données de marché et passage d'ordres
+- **Groq (Llama 3.3 70B)** — agent LLM en langage naturel
 - **Pandas** — transformation des données
 - **Plotly** — visualisation des performances
 - **GitHub Actions** — automatisation du pipeline
