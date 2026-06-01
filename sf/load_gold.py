@@ -10,7 +10,7 @@ def load_signals(df, table="TRADING_SIGNALS"):
         df,
         table_name=table,
         auto_create_table=False,
-        overwrite=False,
+        overwrite=True,
         quote_identifiers=False,
         use_logical_type=True,
     )
