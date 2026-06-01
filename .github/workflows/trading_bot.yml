@@ -31,6 +31,7 @@ jobs:
           echo "SNOWFLAKE_SCHEMA=${{ secrets.SNOWFLAKE_SCHEMA }}" >> .env
           echo "ALPACA_API_KEY=${{ secrets.ALPACA_API_KEY }}" >> .env
           echo "ALPACA_SECRET_KEY=${{ secrets.ALPACA_SECRET_KEY }}" >> .env
+          echo "GROQ_API_KEY=${{ secrets.GROQ_API_KEY }}" >> .env
 
       - name: Run pipeline (ingestion + signaux)
         run: python main.py
