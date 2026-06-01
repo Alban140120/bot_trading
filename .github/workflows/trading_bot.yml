@@ -1,0 +1,39 @@
+name: Trading Bot Daily Run
+
+on:
+  schedule:
+    - cron: '30 16 * * 1-5'  # 16h30 UTC = 18h30 FR (heure d'été) du lundi au vendredi
+  workflow_dispatch:           # permet aussi de lancer manuellement depuis GitHub
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Create .env file
+        run: |
+          echo "SNOWFLAKE_USER=${{ secrets.SNOWFLAKE_USER }}" >> .env
+          echo "SNOWFLAKE_PASSWORD=${{ secrets.SNOWFLAKE_PASSWORD }}" >> .env
+          echo "SNOWFLAKE_ACCOUNT=${{ secrets.SNOWFLAKE_ACCOUNT }}" >> .env
+          echo "SNOWFLAKE_WAREHOUSE=${{ secrets.SNOWFLAKE_WAREHOUSE }}" >> .env
+          echo "SNOWFLAKE_DATABASE=${{ secrets.SNOWFLAKE_DATABASE }}" >> .env
+          echo "SNOWFLAKE_SCHEMA=${{ secrets.SNOWFLAKE_SCHEMA }}" >> .env
+          echo "ALPACA_API_KEY=${{ secrets.ALPACA_API_KEY }}" >> .env
+          echo "ALPACA_SECRET_KEY=${{ secrets.ALPACA_SECRET_KEY }}" >> .env
+
+      - name: Run pipeline (ingestion + signaux)
+        run: python main.py
+
+      - name: Run trading bot
+        run: python run_bot.py

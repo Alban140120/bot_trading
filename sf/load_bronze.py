@@ -9,8 +9,8 @@ def load_market_data(df, table="MARKET_DATA"):
         conn,
         df,
         table_name=table,
-        auto_create_table=False,   # la table doit exister (créée via setup_tables.py)
-        overwrite=False,
+        auto_create_table=False,
+        overwrite=True,
         quote_identifiers=False,
         use_logical_type=True,
     )

@@ -10,7 +10,7 @@ def load_features(df, table="MARKET_FEATURES"):
         df,
         table_name=table,
         auto_create_table=False,
-        overwrite=False,
+        overwrite=True,
         quote_identifiers=False,
         use_logical_type=True,
     )
