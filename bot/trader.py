@@ -127,15 +127,16 @@ def run_bot():
     portfolio_value  = float(account.portfolio_value)
     buying_power     = float(account.buying_power)
 
-    # ── Calcul du capital déjà investi et de la marge disponible ─────────────
-    CAPITAL_TOTAL    = 100_000   # capital paper initial
-    CAPITAL_MAX      = 90_000    # 90% du capital = max investi
-    CASH_RESERVE     = 10_000    # 10% de réserve
+    # ── Calcul du capital déjà investi ────────────────────────────────────────
+    CAPITAL_MAX = 90_000
 
-    long_market_value = sum(
+    long_market_value  = sum(
         float(p.market_value) for p in client.get_all_positions()
     )
     capital_disponible = CAPITAL_MAX - long_market_value
+
+    # ── Symboles déjà en position (évite les rachats) ─────────────────────────
+    symbols_en_position = set(positions.keys())
 
     logger.info(f"Signaux récupérés       : {len(signals)}")
     logger.info(f"Positions ouvertes      : {len(positions)}")
@@ -145,7 +146,7 @@ def run_bot():
     logger.info(f"Buying power            : ${buying_power:,.2f}")
 
     if capital_disponible < TRADE_SIZE:
-        logger.warning(f"STOP | Capital max atteint — investi=${long_market_value:,.2f}$ / max={CAPITAL_MAX:,}$")
+        logger.warning(f"STOP | Capital max atteint — investi=${long_market_value:,.2f} / max={CAPITAL_MAX:,}$")
         return
 
     orders_placed  = 0
@@ -157,11 +158,11 @@ def run_bot():
 
         # ── Vérifier le capital disponible avant chaque BUY ───────────────────
         if signal == "BUY" and capital_disponible < TRADE_SIZE:
-            logger.warning(f"STOP | Capital max atteint : ${long_market_value:,.2f} investi sur ${CAPITAL_MAX:,} max")
+            logger.warning(f"STOP | Capital max atteint : ${long_market_value:,.2f} investi sur ${CAPITAL_MAX:,}$ max")
             break
 
         # ── BUY ───────────────────────────────────────────────────────────────
-        if signal == "BUY" and symbol not in positions:
+        if signal == "BUY" and symbol not in symbols_en_position:
             price = get_current_price(data_client, symbol)
 
             if price and price > 0:
@@ -169,8 +170,9 @@ def run_bot():
                 if qty > 0:
                     logger.info(f"BUY  | {symbol} | prix={price:.2f} | qty={qty:.4f} | conf={confidence:.1f}%")
                     place_order(client, symbol, OrderSide.BUY, qty)
-                    orders_placed     += 1
+                    orders_placed      += 1
                     capital_disponible -= TRADE_SIZE
+                    symbols_en_position.add(symbol)  # ← marquer comme acheté
                 else:
                     logger.warning(f"SKIP | {symbol} | qty trop faible (prix={price:.2f})")
                     orders_skipped += 1
@@ -179,21 +181,22 @@ def run_bot():
                 orders_skipped += 1
 
         # ── SELL ──────────────────────────────────────────────────────────────
-        elif signal == "SELL" and symbol in positions:
+        elif signal == "SELL" and symbol in symbols_en_position:
             pos = positions[symbol]
             qty = float(pos.qty)
             logger.info(f"SELL | {symbol} | qty={qty:.4f} | conf={confidence:.1f}%")
             place_order(client, symbol, OrderSide.SELL, qty)
             orders_placed      += 1
-            capital_disponible += TRADE_SIZE  # libère du capital
+            capital_disponible += TRADE_SIZE
+            symbols_en_position.discard(symbol)  # ← libérer le symbole
 
         else:
-            reason = "déjà en position" if signal == "BUY" and symbol in positions else "pas de position"
+            reason = "déjà en position" if signal == "BUY" and symbol in symbols_en_position else "pas de position"
             logger.debug(f"SKIP | {symbol} | signal={signal} | {reason}")
 
     logger.info("-" * 60)
     logger.info(f"Ordres passés           : {orders_placed}")
     logger.info(f"Ordres skippés          : {orders_skipped}")
-    logger.info(f"Capital investi final   : ${long_market_value + (orders_placed * TRADE_SIZE):,.2f}")
+    logger.info(f"Capital disponible final: ${capital_disponible:,.2f}")
     logger.info("Bot terminé.")
     logger.info("=" * 60)
