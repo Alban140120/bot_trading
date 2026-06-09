@@ -1,5 +1,6 @@
 import pandas as pd
 
+
 def normalize_bars(df: pd.DataFrame) -> pd.DataFrame:
 
     if df is None or df.empty:
@@ -54,9 +55,9 @@ def compute_features(df: pd.DataFrame) -> pd.DataFrame:
         g["BB_LOWER"]  = g["BB_MIDDLE"] - 2 * bb_std
 
         # ── Momentum — MACD ───────────────────────────────────────────────────
-        ema12        = g["CLOSE"].ewm(span=12, adjust=False).mean()
-        ema26        = g["CLOSE"].ewm(span=26, adjust=False).mean()
-        g["MACD"]    = ema12 - ema26
+        ema12            = g["CLOSE"].ewm(span=12, adjust=False).mean()
+        ema26            = g["CLOSE"].ewm(span=26, adjust=False).mean()
+        g["MACD"]        = ema12 - ema26
         g["MACD_SIGNAL"] = g["MACD"].ewm(span=9, adjust=False).mean()
         g["MACD_HIST"]   = g["MACD"] - g["MACD_SIGNAL"]
 
@@ -70,7 +71,6 @@ def compute_features(df: pd.DataFrame) -> pd.DataFrame:
 
     out = pd.concat(results, ignore_index=True)
 
-    # Supprimer les lignes sans indicateurs calculables (besoin min 50 jours)
     out = out.dropna(subset=["MA_50", "RSI_14", "BB_LOWER", "MACD_SIGNAL", "ROC_10"])
     out = out.reset_index(drop=True)
 
@@ -86,7 +86,6 @@ def compute_features(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _trend_following(row) -> str:
-    """MA20 > MA50 = tendance haussière."""
     if row["MA_20"] > row["MA_50"]:
         return "BUY"
     elif row["MA_20"] < row["MA_50"]:
@@ -95,7 +94,6 @@ def _trend_following(row) -> str:
 
 
 def _mean_reversion(row) -> str:
-    """Prix proche bande basse + RSI survendu = rebond attendu."""
     if row["CLOSE"] <= row["BB_LOWER"] and row["RSI_14"] < 35:
         return "BUY"
     elif row["CLOSE"] >= row["BB_UPPER"] and row["RSI_14"] > 65:
@@ -104,7 +102,6 @@ def _mean_reversion(row) -> str:
 
 
 def _momentum(row) -> str:
-    """MACD croise sa ligne de signal + ROC positif = momentum haussier."""
     if row["MACD"] > row["MACD_SIGNAL"] and row["ROC_10"] > 0:
         return "BUY"
     elif row["MACD"] < row["MACD_SIGNAL"] and row["ROC_10"] < 0:
@@ -114,7 +111,7 @@ def _momentum(row) -> str:
 
 def compute_signals(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Système de vote : 2 stratégies sur 3 doivent être d'accord.
+    Système de vote 3 stratégies — seuil : 2/3 pour valider un signal.
     Retourne un DataFrame prêt pour GOLD.TRADING_SIGNALS.
     """
     if df is None or df.empty:
@@ -123,11 +120,11 @@ def compute_signals(df: pd.DataFrame) -> pd.DataFrame:
     out = df[["SYMBOL", "TIMESTAMP"]].copy()
 
     out["SIG_TREND"]    = df.apply(_trend_following, axis=1)
-    out["SIG_MEAN"]     = df.apply(_mean_reversion, axis=1)
-    out["SIG_MOMENTUM"] = df.apply(_momentum, axis=1)
+    out["SIG_MEAN"]     = df.apply(_mean_reversion,  axis=1)
+    out["SIG_MOMENTUM"] = df.apply(_momentum,         axis=1)
 
     def vote(row):
-        signals = [row["SIG_TREND"], row["SIG_MEAN"], row["SIG_MOMENTUM"]]
+        signals    = [row["SIG_TREND"], row["SIG_MEAN"], row["SIG_MOMENTUM"]]
         buy_count  = signals.count("BUY")
         sell_count = signals.count("SELL")
 
